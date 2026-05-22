@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CSV Pipeline</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #ffffff;
+      color: #0a0a0a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    .wrapper {
+      width: 100%;
+      max-width: 480px;
+    }
+
+    /* Header */
+    .header {
+      margin-bottom: 2rem;
+      animation: fadeUp 0.5s ease both;
+    }
+
+    .header h1 {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -0.4px;
+      margin-bottom: 4px;
+    }
+
+    .header p {
+      font-size: 13px;
+      color: #888;
+      font-weight: 400;
+    }
+
+    /* Drop zone */
+    .drop {
+      border: 1.5px dashed #d4d4d4;
+      border-radius: 12px;
+      padding: 2.5rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: #fafafa;
+      animation: fadeUp 0.5s ease 0.05s both;
+    }
+
+    .drop:hover {
+      border-color: #0a0a0a;
+      background: #f5f5f5;
+    }
+
+    .drop.over {
+      border-color: #0a0a0a;
+      background: #f0f0f0;
+    }
+
+    .drop.disabled {
+      opacity: 0.4;
+      cursor: default;
+      pointer-events: none;
+    }
+
+    .drop-icon {
+      font-size: 24px;
+      margin-bottom: 10px;
+      display: block;
+    }
+
+    .drop-title {
+      font-size: 15px;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    .drop-sub {
+      font-size: 12px;
+      color: #999;
+    }
+
+    input[type=file] { display: none; }
+
+    /* File chip */
+    .file-chip {
+      display: none;
+      margin-top: 10px;
+      padding: 10px 14px;
+      background: #f5f5f5;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      align-items: center;
+      gap: 10px;
+      animation: fadeIn 0.3s ease;
+    }
+    .file-chip.show { display: flex; }
+
+    .chip-icon {
+      width: 32px; height: 32px;
+      background: #0a0a0a;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .chip-name {
+      font-size: 13px;
+      font-weight: 500;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .chip-size {
+      font-size: 11px;
+      color: #999;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background: #e5e5e5;
+      margin: 1.5rem 0;
+      display: none;
+    }
+    .divider.show { display: block; animation: fadeIn 0.3s ease; }
+
+    /* Pipeline */
+    .pipeline { display: none; }
+    .pipeline.show { display: block; animation: fadeIn 0.4s ease; }
+
+    .pipeline-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: #999;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+
+    .step {
+      display: flex;
+      gap: 14px;
+      padding: 12px 0;
+      position: relative;
+      opacity: 0.3;
+      transition: opacity 0.4s ease;
+    }
+
+    .step.active, .step.done, .step.error { opacity: 1; }
+
+    .step:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      left: 15px;
+      top: 46px;
+      width: 1px;
+      height: calc(100% - 16px);
+      background: #e5e5e5;
+      transition: background 0.5s;
+    }
+
+    .step.done:not(:last-child)::after { background: #0a0a0a; }
+
+    .step-dot {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      border: 1.5px solid #e5e5e5;
+      background: white;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 1;
+      transition: all 0.3s ease;
+    }
+
+    .step.active .step-dot {
+      border-color: #0a0a0a;
+      background: #0a0a0a;
+      animation: breathe 1.8s ease-in-out infinite;
+    }
+
+    .step.done .step-dot {
+      border-color: #0a0a0a;
+      background: #0a0a0a;
+    }
+
+    .step.error .step-dot {
+      border-color: #dc2626;
+      background: #dc2626;
+    }
+
+    @keyframes breathe {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(10,10,10,0.15); }
+      50% { box-shadow: 0 0 0 5px rgba(10,10,10,0.06); }
+    }
+
+    .step-body {
+      flex: 1;
+      padding-top: 5px;
+    }
+
+    .step-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: #0a0a0a;
+      margin-bottom: 2px;
+    }
+
+    .step-desc {
+      font-size: 12px;
+      color: #aaa;
+    }
+
+    .step.active .step-desc { color: #888; }
+
+    .step-meta {
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      color: #bbb;
+      margin-top: 4px;
+      min-height: 15px;
+      transition: color 0.3s;
+    }
+
+    .step.active .step-meta { color: #555; }
+    .step.done .step-meta { color: #0a0a0a; }
+    .step.error .step-meta { color: #dc2626; }
+
+    /* Progress bar */
+    .prog-wrap {
+      margin-top: 7px;
+      height: 2px;
+      background: #f0f0f0;
+      border-radius: 2px;
+      overflow: hidden;
+      display: none;
+    }
+
+    .step.active .prog-wrap { display: block; }
+    .step.done .prog-wrap { display: block; }
+
+    .prog-fill {
+      height: 100%;
+      border-radius: 2px;
+      width: 0%;
+      background: #0a0a0a;
+      transition: width 0.4s ease;
+    }
+
+    .step.done .prog-fill { width: 100%; }
+
+    /* Success bar */
+    .success-bar {
+      display: none;
+      margin-top: 1.5rem;
+      padding: 13px 16px;
+      background: #fafafa;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #0a0a0a;
+      align-items: center;
+      gap: 8px;
+      animation: fadeIn 0.4s ease;
+    }
+    .success-bar.show { display: flex; }
+
+    /* Metrics */
+    .metrics {
+      display: none;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .metrics.show { display: grid; animation: fadeIn 0.4s ease; }
+
+    .metric {
+      background: #fafafa;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+
+    .metric-val {
+      font-size: 18px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      color: #0a0a0a;
+      letter-spacing: -0.5px;
+    }
+
+    .metric-label {
+      font-size: 10px;
+      color: #999;
+      margin-top: 2px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    /* Reset */
+    .btn-reset {
+      display: none;
+      width: 100%;
+      margin-top: 10px;
+      padding: 11px;
+      background: white;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      color: #888;
+      font-size: 13px;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-reset.show { display: block; }
+    .btn-reset:hover { border-color: #0a0a0a; color: #0a0a0a; }
+
+    /* Footer */
+    .footer {
+      margin-top: 2rem;
+      text-align: center;
+      font-size: 11px;
+      color: #ccc;
+      font-family: 'JetBrains Mono', monospace;
+      animation: fadeUp 0.5s ease 0.2s both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+  <div class="header">
+    <h1>CSV Pipeline</h1>
+    <p>Upload a file </p>
+  </div>
+
+  <div class="drop" id="drop">
+    <span class="drop-icon">↑</span>
+    <div class="drop-title">Drop your CSV file here</div>
+    <div class="drop-sub">or click to browse — Superstore dataset</div>
+    <input type="file" id="fileInput" accept=".csv"/>
+  </div>
+
+  <div class="file-chip" id="fileChip">
+    <div class="chip-icon">CSV</div>
+    <div class="chip-name" id="fileName"></div>
+    <div class="chip-size" id="fileSize"></div>
+  </div>
+
+  <div class="divider" id="divider"></div>
+
+  <div class="pipeline" id="pipeline">
+    <div class="pipeline-label">Pipeline</div>
+
+    <div class="step" id="step-0">
+      <div class="step-dot">☁</div>
+      <div class="step-body">
+        <div class="step-name">Saving to S3</div>
+        <div class="step-desc">Uploading file to csv-raw-data-cc</div>
+        <div class="prog-wrap"><div class="prog-fill" id="prog-0"></div></div>
+        <div class="step-meta" id="meta-0">—</div>
+      </div>
+    </div>
+
+    <div class="step" id="step-1">
+      <div class="step-dot">⚙</div>
+      <div class="step-body">
+        <div class="step-name">Running Glue ETL Job</div>
+        <div class="step-desc">Cleaning, outlier removal, feature engineering</div>
+        <div class="prog-wrap"><div class="prog-fill" id="prog-1"></div></div>
+        <div class="step-meta" id="meta-1">—</div>
+      </div>
+    </div>
+
+    <div class="step" id="step-2">
+      <div class="step-dot">✓</div>
+      <div class="step-body">
+        <div class="step-name">Preprocessing Complete</div>
+        <div class="step-desc">Processed data saved to csv-processed-data-cc</div>
+        <div class="prog-wrap"><div class="prog-fill" id="prog-2"></div></div>
+        <div class="step-meta" id="meta-2">—</div>
+      </div>
+    </div>
+
+    <div class="step" id="step-3">
+      <div class="step-dot">▸</div>
+      <div class="step-body">
+        <div class="step-name">Powering up Dashboard</div>
+        <div class="step-desc">Loading visualization from processed data</div>
+        <div class="step-meta" id="meta-3">—</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="success-bar" id="successBar">
+    <span>✓</span>
+    <span>Pipeline complete — data processed and dashboard ready.</span>
+  </div>
+
+  <div class="metrics" id="metrics">
+    <div class="metric">
+      <div class="metric-val" id="m-time">—</div>
+      <div class="metric-label">Total Time</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val" id="m-size">—</div>
+      <div class="metric-label">File Size</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val" id="m-status">OK</div>
+      <div class="metric-label">Status</div>
+    </div>
+  </div>
+
+  <button class="btn-reset" id="btnReset" onclick="reset()">↺ Run pipeline again</button>
+
+  <div class="footer">S3 → Lambda → Glue ETL → Dashboard</div>
+
+</div>
+
+<script>
+  const LAMBDA_URL = 'https://jwx36lwo6daqssgihagfvxvn4q0uzmuv.lambda-url.ap-south-1.on.aws';
+
+  const drop      = document.getElementById('drop');
+  const fileInput = document.getElementById('fileInput');
+  let startTime   = null;
+  let pollTimer   = null;
+  let glueRunId   = null;
+
+  drop.onclick    = () => fileInput.click();
+  fileInput.onchange = e => handleFile(e.target.files[0]);
+  drop.ondragover  = e => { e.preventDefault(); drop.classList.add('over'); };
+  drop.ondragleave = () => drop.classList.remove('over');
+  drop.ondrop = e => {
+    e.preventDefault(); drop.classList.remove('over');
+    const f = e.dataTransfer.files[0];
+    if (f?.name.endsWith('.csv')) handleFile(f);
+    else alert('Please upload a .csv file');
+  };
+
+  async function handleFile(file) {
+    if (!file) return;
+    startTime = Date.now();
+
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileSize').textContent = (file.size / 1024).toFixed(1) + ' KB';
+    document.getElementById('fileChip').classList.add('show');
+    document.getElementById('divider').classList.add('show');
+    document.getElementById('pipeline').classList.add('show');
+    drop.classList.add('disabled');
+
+    const t0 = Date.now();
+    setStep(0, 'active', 'Connecting to S3...');
+
+    try {
+      const res = await fetch(`${LAMBDA_URL}?filename=${encodeURIComponent(file.name)}`);
+      if (!res.ok) throw new Error('Lambda error');
+      const { url, runId } = await res.json();
+      glueRunId = runId;
+
+      setMeta(0, 'Uploading...');
+      await uploadToS3(url, file);
+      setStep(0, 'done', `Done — ${sec(t0)}`);
+
+      const t1 = Date.now();
+      setStep(1, 'active', 'Job triggered...');
+      slowBar('prog-1', 88, 180000);
+
+      pollTimer = setInterval(async () => {
+        try {
+          const sr = await fetch(`${LAMBDA_URL}/status?runId=${glueRunId}`);
+          const { state } = await sr.json();
+          setMeta(1, `state: ${state.toLowerCase()}`);
+
+          if (state === 'SUCCEEDED') {
+            clearInterval(pollTimer);
+            document.getElementById('prog-1').style.width = '100%';
+            setStep(1, 'done', `Completed — ${sec(t1)}`);
+
+            await delay(500);
+            setStep(2, 'active', 'Saving processed data...');
+            await animBar('prog-2', 100, 1200);
+            setStep(2, 'done', 'Saved to csv-processed-data-cc');
+
+            await delay(400);
+            setStep(3, 'active', 'Powering up dashboard...');
+            await delay(1200);
+            setStep(3, 'done', 'Dashboard ready');
+
+            const total = ((Date.now() - startTime) / 1000).toFixed(0);
+            document.getElementById('m-time').textContent = total + 's';
+            document.getElementById('m-size').textContent = (file.size / 1024).toFixed(0) + 'KB';
+            document.getElementById('successBar').classList.add('show');
+            document.getElementById('metrics').classList.add('show');
+            document.getElementById('btnReset').classList.add('show');
+
+          } else if (['FAILED','ERROR','TIMEOUT','STOPPED'].includes(state)) {
+            clearInterval(pollTimer);
+            setStep(1, 'error', `Job ${state.toLowerCase()}`);
+          }
+        } catch(e) { console.error('Poll error', e); }
+      }, 10000);
+
+    } catch(e) {
+      console.error(e);
+      setStep(0, 'error', 'Upload failed');
+    }
+  }
+
+  function uploadToS3(url, file) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', url);
+      xhr.setRequestHeader('Content-Type', 'text/csv');
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable)
+          document.getElementById('prog-0').style.width = (e.loaded / e.total * 100) + '%';
+      };
+      xhr.onload  = () => xhr.status === 200 ? resolve() : reject(xhr.status);
+      xhr.onerror = reject;
+      xhr.send(file);
+    });
+  }
+
+  function animBar(id, target, duration) {
+    return new Promise(resolve => {
+      const el = document.getElementById(id);
+      const steps = 30; let i = 0;
+      const iv = setInterval(() => {
+        i++;
+        el.style.width = Math.min((i / steps) * target, target) + '%';
+        if (i >= steps) { clearInterval(iv); resolve(); }
+      }, duration / steps);
+    });
+  }
+
+  function slowBar(id, target, duration) {
+    const el = document.getElementById(id);
+    let current = 0;
+    const iv = setInterval(() => {
+      current += (target - current) * 0.015;
+      el.style.width = current + '%';
+      if (current >= target - 0.5) clearInterval(iv);
+    }, duration / 300);
+  }
+
+  function setStep(i, state, meta) {
+    document.getElementById(`step-${i}`).className = `step ${state}`;
+    if (meta) setMeta(i, meta);
+  }
+
+  function setMeta(i, text) {
+    document.getElementById(`meta-${i}`).textContent = text;
+  }
+
+  function sec(t) { return ((Date.now() - t) / 1000).toFixed(1) + 's'; }
+  function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+  function reset() { location.reload(); }
+</script>
+</body>
+</html>
